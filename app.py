@@ -1,0 +1,1 @@
+https://team-ujjaiwal-api.vercel.app/api/isbanned?uid=12345678
