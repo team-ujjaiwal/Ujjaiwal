@@ -9,9 +9,6 @@ from rich.progress import Progress
 app = Flask(__name__)
 console = Console()
 
-def format_error(message):
-    return {"error": {"message": message}}
-
 def check_player_info(target_id):
     with Progress() as progress:
         task = progress.add_task("[cyan]Fetching player data...", total=100)
@@ -53,20 +50,16 @@ def check_player_info(target_id):
             res = requests.post('https://shop2game.com/api/auth/player_id_login', 
                               cookies=cookies, headers=headers, json=json_data)
 
-            if res.status_code != 200:
-                return format_error(f"API request failed with status code {res.status_code}")
-                
-            player_data = res.json()
-            
-            if not player_data.get('nickname'):
-                return format_error("Player not found! Invalid UID")
+            if res.status_code != 200 or not res.json().get('nickname'):
+                return {"error": "ID NOT FOUND"}
 
-            nickname = player_data.get('nickname', 'Not found')
-            region = player_data.get('region', 'Not found')
+            player_data = res.json()
+            nickname = player_data.get('nickname', 'N/A')
+            region = player_data.get('region', 'N/A')
 
             progress.update(task, advance=35)
 
-            ban_url = f'https://ff.garena.com/api/antihack/check_banned?lang=en&uid={target_id}%27'
+            ban_url = f'https://ff.garena.com/api/antihack/check_banned?lang=en&uid={target_id}'
             ban_response = requests.get(ban_url, headers={
                 'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
                 'Accept': 'application/json, text/plain, */*',
@@ -83,66 +76,40 @@ def check_player_info(target_id):
             })
 
             progress.update(task, advance=35)
-            
-            if ban_response.status_code != 200:
-                return format_error("Failed to retrieve ban status from server")
-                
             ban_data = ban_response.json()
 
-            if ban_data.get("status") != "success" or "data" not in ban_data:
-                return format_error("Invalid ban status response from server")
+            if ban_data["status"] == "success" and "data" in ban_data:
+                is_banned = ban_data["data"].get("is_banned", 0)
+                period = ban_data["data"].get("period", 0)
 
-            ban_info = ban_data["data"]
-            is_banned = ban_info.get("is_banned", 0)
-            period = ban_info.get("period", 0)
-
-            ban_status = {
-                "Banned": bool(is_banned),
-                "Message": f"Banned for {period} months" if is_banned and period > 0 else 
-                          "Permanently banned" if is_banned else 
-                          "No active bans found",
-                "PeriodMonths": period if is_banned else None
-            }
+                if is_banned:
+                    ban_message = f"Banned for {period} months" if period > 0 else "Banned indefinitely"
+                else:
+                    ban_message = "Not banned"
+            else:
+                return {"error": "Failed to retrieve ban status"}
 
             return {
-                "Status": "Success",
-                "Data": {
-                    "UID": target_id,
-                    "Name": nickname,
-                    "Region": region,
-                    "BanStatus": ban_status
-                }
+                "nickname": nickname,
+                "region": region,
+                "ban_status": ban_message,
+                "ban_period": f"{period} months" if is_banned and period > 0 else None
             }
 
         except requests.exceptions.RequestException as e:
-            return format_error(f"Network error occurred: {str(e)}")
-        except Exception as e:
-            return format_error(f"An unexpected error occurred: {str(e)}")
+            return {"error": str(e)}
 
-@app.route('/isbanned', methods=['GET'])
-def ban():
+@app.route('/ujjaiwal-region/ban-info', methods=['GET'])
+def get_region_info():
     uid = request.args.get('uid')
-    
     if not uid:
-        return jsonify(format_error("UID parameter is required")), 400
-        
-    if not uid.isdigit():
-        return jsonify(format_error("UID must be a numeric value")), 400
+        return jsonify({"error": "UID parameter is required"}), 400
 
     result = check_player_info(uid)
-    
     if "error" in result:
         return jsonify(result), 404
-        
+
     return jsonify(result)
 
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify(format_error("Page not found")), 404
-
-@app.errorhandler(500)
-def server_error(error):
-    return jsonify(format_error("Internal server error")), 500
-
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000)
