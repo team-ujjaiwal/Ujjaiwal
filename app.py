@@ -99,7 +99,7 @@ def check_player_info(target_id):
         except requests.exceptions.RequestException as e:
             return {"error": str(e)}
 
-@app.route('/ujjaiwal-region/ban-info', methods=['GET'])
+@app.route('/player-ban/info', methods=['GET'])
 def get_region_info():
     uid = request.args.get('uid')
     if not uid:
