@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+import time
 import requests
 from rich.console import Console
 from rich.panel import Panel
@@ -99,17 +100,37 @@ def check_player_info(target_id):
         except requests.exceptions.RequestException as e:
             return {"error": str(e)}
 
-@app.route('/ujjaiwal-region/ban-info', methods=['GET'])
+@app.route('/api/player/check-ban', methods=['GET'])
 def get_region_info():
     uid = request.args.get('uid')
     if not uid:
-        return jsonify({"error": "UID parameter is required"}), 400
+        return jsonify({
+            "status": "error",
+            "message": "UID parameter is required",
+            "credit": "@Ujjaiwal",
+            "channel": "https://t.me/GlobleEarth_Gaming"
+        }), 400
 
+    start_time = time.time()
     result = check_player_info(uid)
-    if "error" in result:
-        return jsonify(result), 404
+    end_time = time.time()
 
-    return jsonify(result)
+    if "error" in result:
+        return jsonify({
+            "status": "error",
+            "message": result["error"],
+            "credit": "@Ujjaiwal",
+            "channel": "https://t.me/GlobleEarth_Gaming"
+        }), 404
+
+    return jsonify({
+        "status": "success",
+        "message": "Player info retrieved successfully",
+        "response_time_ms": int((end_time - start_time) * 1000),
+        "credit": "@Ujjaiwal",
+        "channel": "https://t.me/GlobleEarth_Gaming",
+        "data": result
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
